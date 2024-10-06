@@ -1,0 +1,15 @@
+{
+    "downloads_dir": "/Users/corey/Downloads",
+    "target_directories": {
+        "documents": "/Users/corey/OneDrive/Documents",
+        "images": "/Users/corey/OneDrive/Pictures",
+        "music": "/Users/corey/OneDrive/Music",
+        "videos": "/Users/corey/OneDrive/Videos"
+    },
+    "file_types": {
+        "documents": [".txt", ".doc", ".docx", ".pdf", ".pptx"],
+        "images": [".png", ".jpg", ".jpeg", ".gif"],
+        "music": [".mp3", ".wav", ".flac"],
+        "videos": [".mp4", ".avi", ".mov"]
+    }
+}
