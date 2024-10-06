@@ -49,7 +49,7 @@ The script uses a JSON configuration file (`config.json`) to define its beavior.
 3. Create a `config.json` file in the same directory as the script, using the structure shown above.
 4. Run the script:
 
-        python file_organizer.py
+        python file_manager.py
 
 The script will start running and organize file every day. To stop the script, press Ctrl + C.
 
