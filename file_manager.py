@@ -4,22 +4,33 @@ import time
 import logging
 import json
 import signal
+import os
+import sys
 from pathlib import Path
 from typing import Dict
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+
+
 def load_config(config_path: str) -> Dict:
+    """
+    Load a JSON configuration file and return its contents as a dictionary.
+
+    Parameters:
+    config_path (str): The path to the JSON configuration file.
+
+    Returns:
+    Dict: A dictionary containing the configuration settings.
+
+    Raises:
+    FileNotFoundError: If the specified configuration file does not exist.
+    json.JSONDecodeError: If the configuration file contains invalid JSON.
+    """
     with open(config_path, 'r') as f:
         return json.load(f)
 
 def organize_downloads(source_dir: Path, target_dirs: Dict[str, Path], file_types: Dict [str, tuple], dry_run: bool = False) -> None:
-    file_types = {
-        'documents': ('.txt', '.doc', '.docx', '.pdf', '.pptx'),
-        'images': ('.png', '.jpg', '.jpeg', '.gif'),
-        'music': ('.mp3', '.wav', '.flac'),
-        'videos': ('.mp4', '.avi', '.mov')
-    }
 
     for file_path in source_dir.rglob('*'):
         if file_path.is_file():
@@ -41,7 +52,6 @@ def organize_downloads(source_dir: Path, target_dirs: Dict[str, Path], file_type
                             logging.error(f"Error moving {target_file_path}: {e}")
                             break
 
-    
 
 def run_organizer(config: Dict, dry_run: bool = False) -> None:
     downloads_dir = Path(config['downloads_dir'])
@@ -49,18 +59,25 @@ def run_organizer(config: Dict, dry_run: bool = False) -> None:
     file_types = config['file_types']
     organize_downloads(downloads_dir, target_directories, file_types, dry_run)
     logging.info("File organization completed.")
-
-    downloads_dir = "/Users/corey/Downloads"
-    target_directories = {
-        'documents': "/Users/corey/OneDrive/Documents",
-        'images': "/Users/corey/OneDrive/Pictures",
-        'music': "/Users/corey/OneDrive/Music",
-        'videos': "/Users/corey/OneDrive/Videos"
-    }
     
 def signal_handler(signum, frame):
-    logging.info("Recieved shutdown signal. Exiting...")
-    exit(0) 
+    """
+    Handle shutdown signals for graceful program termination.
+
+    This function is designed to be used as a signal handler for SIGINT and SIGTERM.
+    It logs an info message and exits the program with a status code of 0.
+
+    Parameters:
+    signum (int): The signal number received.
+    frame (frame): Current stack frame (can be None).
+
+    Returns:
+    None: This function does not return as it calls exit(0).
+    """
+    global running
+    running = False
+    logging.info("Received shutdown signal. Exiting...")
+    exit(0)
 
 def main():
     # Load configuration
@@ -76,7 +93,8 @@ def main():
     logging.info("File organizer started. Press Ctrl + C to exit.")
 
     try:
-        while True:
+        running = True
+        while running:
             schedule.run_pending()
             time.sleep(1)
     except KeyboardInterrupt:
