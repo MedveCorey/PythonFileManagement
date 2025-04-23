@@ -8,6 +8,11 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10"]
+
+      permissions:
+        contents: read
+        security-events: write
+        checks: write
     steps:
       - uses: actions/checkout@v4
 
