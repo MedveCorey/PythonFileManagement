@@ -14,17 +14,18 @@ import signal
 from pathlib import Path
 from typing import Any, Dict, Tuple, Optional
 
-# Third-party import now properly managed via requirements.txt
-import schedule
+# Ensure package is installed: pip install schedule
+import schedule  # Now properly managed via requirements.txt
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
+
 class FileOrganizer:
     """Main class to handle file organization and scheduling"""
-    
+
     def __init__(self) -> None:
         self.running = True
         self.config: Optional[Dict[str, Any]] = None
@@ -70,11 +71,11 @@ class FileOrganizer:
         for file_path in source_dir.rglob('*'):
             if not self.running:
                 break
-                
+
             if file_path.is_file():
                 self._process_file(file_path, target_dirs, file_types, dry_run)
                 moved_files += 1
-                
+
         logging.info("Processed %d files", moved_files)
 
     def _process_file(
@@ -125,15 +126,15 @@ class FileOrganizer:
 
     def signal_handler(self, signum: int, frame: Any) -> None:
         """Handle shutdown signals for graceful termination"""
-        logging.info("Received shutdown signal (SIG%s). Exiting...", 
-                    signal.Signals(signum).name)
+        logging.info("Received shutdown signal (SIG%s). Exiting...",
+                   signal.Signals(signum).name)
         self.running = False
         sys.exit(0)
 
     def main(self) -> None:
         """Main entry point for the file manager script"""
         self.config = self.load_config('config.json')
-        
+
         # Set up signal handlers
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -146,8 +147,11 @@ class FileOrganizer:
             while self.running:
                 schedule.run_pending()
                 time.sleep(1)
-        except Exception as e:
+        except (KeyboardInterrupt, SystemExit):
+            logging.info("Shutdown initiated")
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logging.error("Unexpected error: %s", str(e))
+            sys.exit(1)
         finally:
             logging.info("File organizer shutdown complete")
 
