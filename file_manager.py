@@ -124,7 +124,7 @@ class FileOrganizer:
         file_types = config['file_types']
         self.organize_downloads(downloads_dir, target_dirs, file_types, dry_run)
 
-    def signal_handler(self, signum: int, frame: Any) -> None:
+    def signal_handler(self, signum: int) -> None:
         """Handle shutdown signals for graceful termination"""
         logging.info("Received shutdown signal (SIG%s). Exiting...",
                    signal.Signals(signum).name)
