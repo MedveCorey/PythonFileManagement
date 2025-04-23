@@ -11,118 +11,147 @@ import time
 import logging
 import json
 import signal
-
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Optional
 
+# Third-party import now properly managed via requirements.txt
 import schedule
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
-RUNNING = True
-
-def load_config(config_path: str) -> Dict[str, Any]:
-    """
-    Load a JSON configuration file and return its contents as a dictionary.
-
-    Parameters:
-    config_path (str): The path to the JSON configuration file.
-
-    Returns:
-    Dict[str, Any]: A dictionary containing the configuration settings.
-
-    Raises:
-    FileNotFoundError: If the specified configuration file does not exist.
-    json.JSONDecodeError: If the configuration file contains invalid JSON.
-    """
-    with open(config_path, 'r') as f:
-        return json.load(f)
-
-def organize_downloads(
-        source_dir: Path,
-        target_dirs: Dict[str, Path],
-        file_types: Dict[str, Tuple[str, ...]],
-        dry_run: bool = False
-) -> None:
-    """
-    Organize files from the source directory into target directories based on file types.
-
-    Parameters:
-    source_dir (Path): The directory to scan for files.
-    target_dirs (Dict[str, Path]): Mapping of category names to target directories.
-    file_types (Dict[str, Tuple[str, ...]]): Mapping of category names to file extensions.
-    dry_run (bool): If True, only log actions without moving files.
-    """
-    for file_path in source_dir.rglob('*'):
-        if file_path.is_file():
-            file_extension = file_path.suffix.lower()
-            for category, extensions in file_types.items():
-                if file_extension in extensions:
-                    target_dir = target_dirs.get(category)
-                    if target_dir:
-                        try:
-                            target_file_path = target_dir / file_path.name
-                            if not dry_run:
-                                shutil.move(str(file_path), str(target_file_path))
-                            logging.info(
-                                '%s %s to %s',
-                                'Would move' if dry_run else 'Moved',
-                                file_path.name,
-                                target_dir
-                            )
-                        except FileNotFoundError:
-                            logging.error("File not found: %s", file_path)
-                        except PermissionError:
-                            logging.error("Permission denied: %s", file_path)
-                        except shutil.Error as exc:
-                            logging.error("Error moving %s: %s", target_file_path, exc)
-                    break  # Stop after first matching category
-
-
-
-def run_organizer(config: Dict[str, Any], dry_run: bool = False) -> None:
-    downloads_dir = Path(config['downloads_dir'])
-    target_directories = {k: Path(v) for k, v in config['target_directories'].items()}
-    file_types = config['file_types']
-    organize_downloads(downloads_dir, target_directories, file_types, dry_run)
-    logging.info("File organization completed.")
+class FileOrganizer:
+    """Main class to handle file organization and scheduling"""
     
-def signal_handler():
-    """
-    Handle shutdown signals for graceful program termination.
+    def __init__(self) -> None:
+        self.running = True
+        self.config: Optional[Dict[str, Any]] = None
 
-    This function is designed to be used as a signal handler for SIGINT and SIGTERM.
-    It logs an info message and exits the program with a status code of 0.
+    def load_config(self, config_path: str) -> Dict[str, Any]:
+        """
+        Load a JSON configuration file and return its contents as a dictionary.
 
-    Returns:
-    None: This function does not return as it calls exit(0).
-    """
-    global RUNNING
-    RUNNING = False
-    logging.info("Received shutdown signal. Exiting...")
-    sys.exit(0)
+        Parameters:
+        config_path (str): The path to the JSON configuration file.
 
-def main():
-    """
-    Main entry point for the file manager script.
-    """
-    config = load_config('config.json')
-    
-    # set up signal handlers for graceful shutdown
+        Returns:
+        Dict[str, Any]: A dictionary containing the configuration settings.
 
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+        Raises:
+        FileNotFoundError: If the specified configuration file does not exist.
+        json.JSONDecodeError: If the configuration file contains invalid JSON.
+        """
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logging.error("Config error: %s", str(e))
+            sys.exit(1)
 
-    # Schedule the organizer to run every day
-    schedule.every(1).day.do(run_organizer, config=config)
-    logging.info("File organizer started. Press Ctrl + C to exit.")
+    def organize_downloads(
+            self,
+            source_dir: Path,
+            target_dirs: Dict[str, Path],
+            file_types: Dict[str, Tuple[str, ...]],
+            dry_run: bool = False
+    ) -> None:
+        """
+        Organize files from the source directory into target directories based on file types.
 
-    try:
-        while RUNNING:
-            schedule.run_pending()
-            time.sleep(1)
-    except KeyboardInterrupt:
-        logging.info("Keyboard interrupt received. Exiting...")
+        Parameters:
+        source_dir (Path): The directory to scan for files.
+        target_dirs (Dict[str, Path]): Mapping of category names to target directories.
+        file_types (Dict[str, Tuple[str, ...]]): Mapping of category names to file extensions.
+        dry_run (bool): If True, only log actions without moving files.
+        """
+        moved_files = 0
+        for file_path in source_dir.rglob('*'):
+            if not self.running:
+                break
+                
+            if file_path.is_file():
+                self._process_file(file_path, target_dirs, file_types, dry_run)
+                moved_files += 1
+                
+        logging.info("Processed %d files", moved_files)
+
+    def _process_file(
+            self,
+            file_path: Path,
+            target_dirs: Dict[str, Path],
+            file_types: Dict[str, Tuple[str, ...]],
+            dry_run: bool
+    ) -> None:
+        """Helper method to process individual files"""
+        file_extension = file_path.suffix.lower()
+        for category, extensions in file_types.items():
+            if file_extension in extensions:
+                self._move_file(file_path, category, target_dirs, dry_run)
+                break
+
+    def _move_file(
+            self,
+            file_path: Path,
+            category: str,
+            target_dirs: Dict[str, Path],
+            dry_run: bool
+    ) -> None:
+        """Helper method to handle file movement"""
+        target_dir = target_dirs.get(category)
+        if not target_dir:
+            return
+
+        target_file_path = target_dir / file_path.name
+        try:
+            if not dry_run:
+                shutil.move(str(file_path), str(target_file_path))
+            logging.info(
+                '%s %s to %s',
+                'Would move' if dry_run else 'Moved',
+                file_path.name,
+                target_dir
+            )
+        except (FileNotFoundError, PermissionError, shutil.Error) as e:
+            logging.error("Error processing %s: %s", file_path.name, str(e))
+
+    def run_organizer(self, config: Dict[str, Any], dry_run: bool = False) -> None:
+        """Execute the file organization process"""
+        downloads_dir = Path(config['downloads_dir'])
+        target_dirs = {k: Path(v) for k, v in config['target_directories'].items()}
+        file_types = config['file_types']
+        self.organize_downloads(downloads_dir, target_dirs, file_types, dry_run)
+
+    def signal_handler(self, signum: int, frame: Any) -> None:
+        """Handle shutdown signals for graceful termination"""
+        logging.info("Received shutdown signal (SIG%s). Exiting...", 
+                    signal.Signals(signum).name)
+        self.running = False
+        sys.exit(0)
+
+    def main(self) -> None:
+        """Main entry point for the file manager script"""
+        self.config = self.load_config('config.json')
+        
+        # Set up signal handlers
+        signal.signal(signal.SIGINT, self.signal_handler)
+        signal.signal(signal.SIGTERM, self.signal_handler)
+
+        # Schedule organization
+        schedule.every(1).day.do(self.run_organizer, config=self.config)
+        logging.info("File organizer started. Press Ctrl+C to exit.")
+
+        try:
+            while self.running:
+                schedule.run_pending()
+                time.sleep(1)
+        except Exception as e:
+            logging.error("Unexpected error: %s", str(e))
+        finally:
+            logging.info("File organizer shutdown complete")
+
 
 if __name__ == "__main__":
-    main()
+    organizer = FileOrganizer()
+    organizer.main()
