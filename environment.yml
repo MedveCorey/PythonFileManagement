@@ -8,3 +8,4 @@ dependencies:
   - pip:
       - schedule
       - pylint
+      - pytest

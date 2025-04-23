@@ -68,6 +68,11 @@ class FileOrganizer:
         dry_run (bool): If True, only log actions without moving files.
         """
         moved_files = 0
+
+        if not dry_run:
+            for dir_path in target_dirs.values():
+                dir_path.mkdir(parents=True, exist_ok=True)
+    
         for file_path in source_dir.rglob('*'):
             if not self.running:
                 break
@@ -105,6 +110,13 @@ class FileOrganizer:
             return
 
         target_file_path = target_dir / file_path.name
+
+        # Handle existing files
+        counter = 1
+        while target_file_path.exists():
+            target_file_path = target_dir / f"{file_path.stem}_{counter}{file_path.suffix}"
+            counter +=1
+
         try:
             if not dry_run:
                 shutil.move(str(file_path), str(target_file_path))
@@ -124,12 +136,12 @@ class FileOrganizer:
         file_types = config['file_types']
         self.organize_downloads(downloads_dir, target_dirs, file_types, dry_run)
 
-    def signal_handler(self, signum: int) -> None:
+    def signal_handler(self, signum: int, frame: Any) -> None:
         """Handle shutdown signals for graceful termination"""
+        _ = frame
         logging.info("Received shutdown signal (SIG%s). Exiting...",
                    signal.Signals(signum).name)
         self.running = False
-        sys.exit(0)
 
     def main(self) -> None:
         """Main entry point for the file manager script"""
@@ -151,9 +163,10 @@ class FileOrganizer:
             logging.info("Shutdown initiated")
         except Exception as e:  # pylint: disable=broad-exception-caught
             logging.error("Unexpected error: %s", str(e))
-            sys.exit(1)
         finally:
             logging.info("File organizer shutdown complete")
+            sys.exit(0)
+
 
 
 if __name__ == "__main__":
