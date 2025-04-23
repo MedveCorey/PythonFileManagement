@@ -1,13 +1,13 @@
 import shutil
-import schedule
 import time
 import logging
 import json
 import signal
-import os
-import sys
+
 from pathlib import Path
 from typing import Dict
+
+import schedule
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -30,7 +30,11 @@ def load_config(config_path: str) -> Dict:
     with open(config_path, 'r') as f:
         return json.load(f)
 
-def organize_downloads(source_dir: Path, target_dirs: Dict[str, Path], file_types: Dict [str, tuple], dry_run: bool = False) -> None:
+def organize_downloads(
+        source_dir: Path, 
+        target_dirs: Dict[str, Path], 
+        file_types: Dict [str, tuple], 
+        dry_run: bool = False) -> None:
 
     for file_path in source_dir.rglob('*'):
         if file_path.is_file():
@@ -60,16 +64,12 @@ def run_organizer(config: Dict, dry_run: bool = False) -> None:
     organize_downloads(downloads_dir, target_directories, file_types, dry_run)
     logging.info("File organization completed.")
     
-def signal_handler(signum, frame):
+def signal_handler():
     """
     Handle shutdown signals for graceful program termination.
 
     This function is designed to be used as a signal handler for SIGINT and SIGTERM.
     It logs an info message and exits the program with a status code of 0.
-
-    Parameters:
-    signum (int): The signal number received.
-    frame (frame): Current stack frame (can be None).
 
     Returns:
     None: This function does not return as it calls exit(0).
